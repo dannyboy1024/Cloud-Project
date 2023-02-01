@@ -27,6 +27,10 @@ def main():
 
 @webapp.route('/get',methods=['POST'])
 def get():
+    """
+    Fetch the value from the memcache given a key
+    key: string
+    """
     key = request.form.get('key')
     value = memcache_global.memcache_get(key)
     
@@ -47,19 +51,32 @@ def get():
 
 @webapp.route('/put',methods=['POST'])
 def put():
+    """
+    Upload the key/value pair to the memcache
+    key: string
+    value: string (For images, base64 encoded string)
+    """
     key = request.form.get('key')
     value = request.form.get('value')
-    memcache_global.memcache_put(key, value)
+    feedback = memcache_global.memcache_put(key, value)
+
+    status_feedback = 200
+    if feedback == "Size too big": 
+        status_feedback = 400
 
     response = webapp.response_class(
-        response=json.dumps("OK"),
-        status=200,
+        response=json.dumps(feedback),
+        status=status_feedback,
         mimetype='application/json'
     )
     return response
 
 @webapp.route('/clear',methods=['POST'])
 def clear():
+    """
+    Remove all contents in the memcache
+    No inputs required
+    """
     memcache_global.memcache_clear()
 
     response = webapp.response_class(
@@ -71,6 +88,10 @@ def clear():
 
 @webapp.route('/invalidateKey',methods=['POST'])
 def invalidateKey():
+    """
+    Remove an entry in the memcache given a key
+    key: string
+    """
     key = request.form.get('key')
     message = memcache_global.memcache_invalidate(key)
     if message == "OK":
@@ -89,6 +110,11 @@ def invalidateKey():
 
 @webapp.route('/refreshConfiguration',methods=['POST'])
 def refreshConfiguration():
+    """
+    Read from the database and configure memcache setting according to 
+    memcache configuration data
+    No inputs required
+    """
     # Pending DB code
     size = 50*1024*1024
     mode = "RR"
@@ -107,6 +133,12 @@ def refreshConfiguration():
 # Pass from Front End Functions
 @webapp.route('/uploadToDB',methods=['POST'])
 def uploadToDB():
+    """
+    Upload the key to the database
+    Store the value as a file in the local file system, key as filename
+    key: string
+    value: string (For images, base64 encoded string)
+    """
     key = request.form.get('key')
     value = request.form.get('value')
     #Omit DB code
@@ -128,6 +160,10 @@ def uploadToDB():
     
 @webapp.route('/getFromDB',methods=['POST'])
 def getFromDB():
+    """
+    Fetch the value (file, or image) from the file system given a key
+    key: string
+    """
     key = request.form.get('key')
     full_file_path = os.path.join(os_file_path, key)
     if not os.path.isfile(full_file_path):
@@ -148,6 +184,10 @@ def getFromDB():
 
 @webapp.route('/allKeyDB',methods=['POST'])
 def allKeyDB():
+    """
+    Display all the keys that stored in the database
+    No inputs required
+    """
     #Omit DB code
     allKeys = list(dummyDB.keys())
     #End of using dummyDB
@@ -162,6 +202,10 @@ def allKeyDB():
 
 @webapp.route('/deleteAllFromDB',methods=['POST'])
 def deleteAllFromDB():
+    """
+    Remove all the key and values (files, images) from the database and filesystem
+    No inputs required
+    """
     #Omit DB code
     allKeys = list(dummyDB.keys())
     #End of using dummyDB
@@ -179,6 +223,10 @@ def deleteAllFromDB():
 
 @webapp.route('/allKeyMemcache',methods=['GET'])
 def allKeyMemcache():
+    """
+    Display all the keys that stored in the memcache
+    No inputs required
+    """
     allKeys = memcache_global.memcache_allkeys()
     response = webapp.response_class(
         response=json.dumps(allKeys),
@@ -189,6 +237,11 @@ def allKeyMemcache():
 
 @webapp.route('/configureMemcache',methods=['POST'])
 def configureMemcache():
+    """
+    Send the new memcache configuration to the database
+    size: an integer, number of MB (eg. 5 will be treated as 5 MB)
+    mode: a string, can be either "RR" or "LRU"
+    """
     size = request.form.get('size')
     mode = request.form.get('mode')
     #omit DB code
@@ -201,6 +254,10 @@ def configureMemcache():
 
 @webapp.route('/requestCurrentStat',methods=['GET'])
 def requestCurrentStat():
+    """
+    Display memcache related statistics read from database
+    No inputs required
+    """
     #Omit DB code
     allKeys = list(dummyDB.keys())
     #End of using dummyDB
@@ -214,6 +271,10 @@ def requestCurrentStat():
 #For debugging purpose
 @webapp.route('/currentConfig',methods=['GET'])
 def currentConfig():
+    """
+    Display memcache related statistics tracked by memcache locally
+    No inputs required
+    """
     configurationList = memcache_global.current_configuration()
     response = webapp.response_class(
         response=json.dumps(configurationList),
