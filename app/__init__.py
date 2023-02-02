@@ -1,4 +1,12 @@
 from flask import Flask
+from flask_cors import CORS
+
+global memcache
+
+webapp = Flask(__name__)
+CORS(webapp)
+memcache = {}
+
 import base64
 import random
 
@@ -10,7 +18,7 @@ class memcache_structure:
         Constructor, default configuration is 10MB and random replacement mode
         """
         self.memcache = {}
-        self.memcache_size = 10*1024*1024
+        self.memcache_size = 10 * 1024 * 1024
         self.memcache_mode = "RR"
         self.current_num_items = 0
         self.current_size = 0
@@ -21,7 +29,7 @@ class memcache_structure:
         # item will be stored in 0 index place, with later entries are the
         # ones accessed more recently
         self.access_tracker = None
-        
+
     def memcache_invalidate(self, key):
         """
         Remove a key and its entry (value) from the memcache
@@ -35,7 +43,7 @@ class memcache_structure:
             return "OK"
         else:
             return "Unknown key"
-    
+
     def memcache_evict(self):
         """
         Called either the remaining size of memcache is smaller than the size of new
@@ -59,19 +67,19 @@ class memcache_structure:
         while size < self.memcache_size:
             self.memcache_evict()
         self.memcache_size = size
-        if self.memcache_mode != mode: 
+        if self.memcache_mode != mode:
             self.memcache_mode = mode
             if self.memcache_mode == "RR":
                 self.access_tracker = None
             elif self.memcache_mode == "LRU":
                 self.access_tracker = []
 
-    def memcache_put(self, key, value): 
+    def memcache_put(self, key, value):
         """
         Insert a new entry into the memcache
         """
         self.num_requests = self.num_requests + 1
-        if len(value) > self.memcache_size: 
+        if len(value) > self.memcache_size:
             return "Size too big"
         # Remove old entry if key exist
         if key in self.memcache:
@@ -82,7 +90,7 @@ class memcache_structure:
         self.memcache[key] = value
         self.current_size = self.current_size + len(value)
         self.current_num_items = self.current_num_items + 1
-        if self.memcache_mode == "LRU": 
+        if self.memcache_mode == "LRU":
             self.access_tracker.append(key)
         return "OK"
 
@@ -94,7 +102,7 @@ class memcache_structure:
         self.memcache.clear()
         self.current_num_items = 0
         self.current_size = 0
-        if self.memcache_mode == "LRU": 
+        if self.memcache_mode == "LRU":
             self.access_tracker = []
 
     def memcache_get(self, key):
@@ -104,7 +112,7 @@ class memcache_structure:
         self.num_requests = self.num_requests + 1
         if key in self.memcache:
             self.hit = self.hit + 1
-            if self.memcache_mode == "LRU": 
+            if self.memcache_mode == "LRU":
                 self.access_tracker.remove(key)
                 self.access_tracker.append(key)
             return self.memcache[key]
@@ -118,7 +126,7 @@ class memcache_structure:
         """
         self.num_requests = self.num_requests + 1
         return list(self.memcache.keys())
-    
+
     def current_configuration(self):
         """
         Return a list of memcache configuration
@@ -134,9 +142,9 @@ class memcache_structure:
         full_list.append(self.hit)
         return full_list
 
+
 webapp = Flask(__name__)
 memcache_global = memcache_structure();
 dummyDB = {}
-
 
 from app import main
