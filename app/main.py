@@ -1,5 +1,7 @@
+import base64
+
 from flask import render_template, url_for, request
-from app import webapp, memcache_structure, memcache_global, dummyDB
+from app import webapp, memcache_global, dummyDB
 from flask import json
 import logging
 from pathlib import Path
@@ -7,8 +9,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import time
 import atexit
+import requests
 
 os_file_path = "C:/Users/jscst/Flask_Test/"
+memcache_host = 'http://127.0.0.1:1081'  # TODO : memcache url
 
 
 def print_date_time():
@@ -35,7 +39,7 @@ def get():
     Fetch the value from the memcache given a key
     key: string
     """
-    key = request.form.get('key')
+    key = request.args.get('key')
     value = memcache_global.memcache_get(key)
 
     if value is None:
@@ -60,8 +64,8 @@ def put():
     key: string
     value: string (For images, base64 encoded string)
     """
-    key = request.form.get('key')
-    value = request.form.get('value')
+    key = request.args.get('key')
+    value = request.args.get('value')
     feedback = memcache_global.memcache_put(key, value)
 
     status_feedback = 200
@@ -135,28 +139,28 @@ def refreshConfiguration():
     return response
 
 
-@webapp.route('/put', methods=['POST'])
-def put():
-    """
-    Upload the key/value pair to the memcache
-    key: string
-    value: string (For images, base64 encoded string)
-    """
-    key = request.form.get('key')
-    value = request.form.get('value')
-    feedback = memcache_global.memcache_put(key, value)
-
-    status_feedback = 200
-    if feedback == "Size too big":
-        status_feedback = 400
-
-    response = webapp.response_class(
-        response=json.dumps(feedback),
-        status=status_feedback,
-        mimetype='application/json'
-    )
-    return response
-
+# @webapp.route('/put', methods=['POST'])
+# def put():
+#     """
+#     Upload the key/value pair to the memcache
+#     key: string
+#     value: string (For images, base64 encoded string)
+#     """
+#     key = request.form.get('key')
+#     value = request.form.get('value')
+#     feedback = memcache_global.memcache_put(key, value)
+#
+#     status_feedback = 200
+#     if feedback == "Size too big":
+#         status_feedback = 400
+#
+#     response = webapp.response_class(
+#         response=json.dumps(feedback),
+#         status=status_feedback,
+#         mimetype='application/json'
+#     )
+#     return response
+#
 
 # Pass from Front End Functions
 @webapp.route('/uploadToDB', methods=['POST'])
@@ -193,7 +197,8 @@ def getFromDB():
     Fetch the value (file, or image) from the file system given a key
     key: string
     """
-    key = request.form.get('key')
+
+    key = request.args.get('key')
     full_file_path = os.path.join(os_file_path, key)
     if not os.path.isfile(full_file_path):
         response = webapp.response_class(
@@ -360,7 +365,6 @@ def requestCurrentStat():
     )
     return response
 
-
 # For debugging purpose
 @webapp.route('/currentConfig', methods=['GET'])
 def currentConfig():
@@ -375,3 +379,53 @@ def currentConfig():
         mimetype='application/json'
     )
     return response
+
+
+@webapp.route('/image', methods=['GET', 'POST'])
+def imageProcess():
+    # get, upload image with key
+    key = request.args.get('key')
+    if request.method == 'GET':
+        # retrieve image
+        requestJson = {
+            'key': key
+        }
+        res = requests.post(memcache_host + '/get', params=requestJson)
+        if res.status_code == 400:
+            # request misses, query db
+            res = requests.post(memcache_host + '/getFromDB', params=requestJson)
+            content = res.json()
+            response = webapp.response_class(
+                response=json.dumps(content),
+                status=200,
+                mimetype='application/json'
+            )
+            return response
+        else:
+            print('success image')
+            print(res.content)
+            content = base64.b64decode(res.content)
+            response = webapp.response_class(
+                response=json.dumps(bytes.decode(content)),
+                status=200,
+                mimetype='application/json'
+            )
+            return response
+    elif request.method == 'POST':
+        # upload image with key
+        # transfer the bytes into dict
+        data = eval(bytes.decode(request.data))
+        key = data.get('key')
+        imageContent = data.get('imageContent')
+        requestJson = {
+            'key': key,
+            'value': base64.b64encode(str(imageContent).encode())
+        }
+        res = requests.post(memcache_host + '/put', params=requestJson)
+        content = res.json()
+        response = webapp.response_class(
+            response=json.dumps(content),
+            status=200,
+            mimetype='application/json'
+        )
+        return response

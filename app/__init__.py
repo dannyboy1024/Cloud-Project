@@ -7,12 +7,10 @@ webapp = Flask(__name__)
 CORS(webapp)
 memcache = {}
 
-from app import main
 import base64
 import random
 
 global memcache_global, dummyDB
-
 
 class memcache_structure:
     def __init__(self):
