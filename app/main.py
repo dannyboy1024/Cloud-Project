@@ -1,7 +1,7 @@
 import base64
 
 from flask import render_template, url_for, request
-from app import webapp, memcache_global, dummyDB
+from app import webapp, memcache_structure, memcache_global, RDBMS, db, CACHECONFIGS, FILEINFO, CACHESTATS
 from flask import json
 import logging
 from pathlib import Path
@@ -12,16 +12,32 @@ import atexit
 import requests
 
 os_file_path = "C:/Users/jscst/Flask_Test/"
+# os_file_path = "C:/Users/yuanlidi/ECE1779/A1/localFiles/"
 memcache_host = 'http://127.0.0.1:1081'  # TODO : memcache url
 
 
-def print_date_time():
+def write_memcache_stats_to_db():
     # We will use this function to implement the timing storage
     print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
-
+    
+    # get stats
+    numItems = memcache_global.current_num_items
+    totalSize = memcache_global.current_size
+    numReqs = memcache_global.num_requests
+    numMiss = memcache_global.miss
+    numHit = memcache_global.hit
+    missRate = (numMiss / (numMiss + numHit)) if numMiss + numHit > 0 else 0.0
+    hitRate = (numHit / (numMiss + numHit)) if numMiss + numHit > 0 else 0.0
+    
+    # update db
+    numRows, lastRowID = db.insertCacheStats(CACHESTATS(numItems, totalSize, numReqs, missRate, hitRate))
+    if numRows == db.cacheStatsTableMaxRowNum:
+        # delete the first row if there are 120 rows (10 min stats) in the table
+        db.delCacheStats(lastRowID - db.cacheStatsTableMaxRowNum)
+    
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=print_date_time, trigger="interval", seconds=5)
+scheduler.add_job(func=write_memcache_stats_to_db, trigger="interval", seconds=5)
 scheduler.start()
 
 # Shut down the scheduler when exiting the app
@@ -126,13 +142,21 @@ def refreshConfiguration():
     memcache configuration data
     No inputs required
     """
-    # Pending DB code
-    size = 50 * 1024 * 1024
-    mode = "RR"
-    # End Pending DB code
+    # # Pending DB code
+    # size = 50 * 1024 * 1024
+    # mode = "RR"
+    # # End Pending DB code
+    cacheConfigs = db.readCacheConfigs()
+    size = cacheConfigs.capacity
+    mode = cacheConfigs.replacementPolicy
+    configs = {
+        "size" : size,
+        "mode" : mode
+    }
+
     memcache_global.memcache_reconfigure(size, mode)
     response = webapp.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps(configs),
         status=200,
         mimetype='application/json'
     )
@@ -171,19 +195,25 @@ def uploadToDB():
     key: string
     value: string (For images, base64 encoded string)
     """
-    key = request.form.get('key')
-    value = request.form.get('value')
-    # Omit DB code
-    dummyDB[key] = "yes"
-    # End of using dummyDB
+    key = request.args.get('key')
+    value = request.args.get('value')
+
     full_file_path = os.path.join(os_file_path, key)
     if os.path.isfile(full_file_path):
         os.remove(full_file_path)
     with open(full_file_path, 'w') as fp:
         fp.write(value)
 
+    # # Omit DB code
+    # dummyDB[key] = "yes"
+    # # End of using dummyDB
+    if db.readFileInfo(key) == None:
+        db.insertFileInfo(FILEINFO(key, full_file_path))
+    else:
+        db.updFileInfo(FILEINFO(key, full_file_path))
+
     response = webapp.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps(full_file_path),
         status=200,
         mimetype='application/json'
     )
@@ -223,9 +253,10 @@ def allKeyDB():
     Display all the keys that stored in the database
     No inputs required
     """
-    # Omit DB code
-    allKeys = list(dummyDB.keys())
-    # End of using dummyDB
+    # # Omit DB code
+    # allKeys = list(dummyDB.keys())
+    # # End of using dummyDB
+    allKeys = db.readAllFileKeys()
 
     response = webapp.response_class(
         response=json.dumps(allKeys),
@@ -242,9 +273,11 @@ def deleteAllFromDB():
     Remove all the key and values (files, images) from the database and filesystem
     No inputs required
     """
-    # Omit DB code
-    allKeys = list(dummyDB.keys())
-    # End of using dummyDB
+    # # Omit DB code
+    # allKeys = list(dummyDB.keys())
+    # # End of using dummyDB
+    allKeys = db.readAllFileKeys()
+    db.delAllFileInfo()
     for key in allKeys:
         full_file_path = os.path.join(os_file_path, key)
         if os.path.isfile(full_file_path):
@@ -263,7 +296,10 @@ def deleteAllFromDB():
 def getKeys():
     # query keys stored in database
     # TODO(wkx): db内容查询keys
-    keys = [1, 2, 3]
+
+    # keys = [1, 2, 3]
+    keys = db.readAllFileKeys()
+
     response = webapp.response_class(
         response=json.dumps(keys),
         status=200,
@@ -295,12 +331,15 @@ def deleteKeys():
         logging.info("Delete key: ", key)
         # delete one specified key
         # TODO(wkx): delete key and retrieve
-        pass
+        db.delFileInfo(key)
     else:
         logging.info("Delete all keys")
         # TODO(wkx): delete key and retrieve
-        pass
-    keyList = [2, 3]
+        db.delAllFileInfo()
+
+    # keyList = [2, 3]
+    keyList = db.readAllFileKeys()
+
     response = webapp.response_class(
         response=json.dumps(keyList),
         status=200,
@@ -316,11 +355,18 @@ def configureMemcache():
     size: an integer, number of MB (eg. 5 will be treated as 5 MB)
     mode: a string, can be either "RR" or "LRU"
     """
-    size = request.form.get('size')
-    mode = request.form.get('mode')
+    size = request.args.get('size')
+    mode = request.args.get('mode')
     # omit DB code
+    
+    db.updCacheConfigs(CACHECONFIGS(size, mode))
+    configs = {
+        'size' : size,
+        'mode' : mode
+    }
+
     response = webapp.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps(configs),
         status=200,
         mimetype='application/json'
     )
@@ -330,16 +376,18 @@ def configureMemcache():
 @webapp.route('/params', methods=['GET', 'PUT'])
 # return mem-cache configuration params
 def getParams():
+    cacheConfigs = None
     if request.method == 'GET':
         # TODO(wkx): get params from database
-        pass
+        cacheConfigs = db.readCacheConfigs()
     elif request.method == 'PUT':
         params = request.args.get('params')
         # TODO(wkx): alter params from database, return altered params
-        pass
+        cacheConfigs = CACHECONFIGS(params['size'], params['policy'])
+        db.updCacheConfigs(cacheConfigs)
     params = {
-        'policy': '1',
-        'size': 24
+        'size': cacheConfigs.capacity,
+        'policy': cacheConfigs.replacementPolicy
     }
     response = webapp.response_class(
         response=json.dumps(params),
@@ -355,11 +403,19 @@ def requestCurrentStat():
     Display memcache related statistics read from database
     No inputs required
     """
-    # Omit DB code
-    allKeys = list(dummyDB.keys())
-    # End of using dummyDB
+    # # Omit DB code
+    # allKeys = list(dummyDB.keys())
+    # # End of using dummyDB
+    cacheStats = db.readAllStats()
+    stats = {
+        'numItems' : [record.numItems for record in cacheStats],
+        'totalSize' : [record.totalSize for record in cacheStats],
+        'numReqs' : [record.numReqs for record in cacheStats],
+        'missRate' : [record.missRate for record in cacheStats],
+        'hitRate' : [record.hitRate for record in cacheStats]
+    }
     response = webapp.response_class(
-        response=json.dumps(allKeys),
+        response=json.dumps(stats),
         status=200,
         mimetype='application/json'
     )
@@ -369,7 +425,7 @@ def requestCurrentStat():
 @webapp.route('/currentConfig', methods=['GET'])
 def currentConfig():
     """
-    Display memcache related statistics tracked by memcache locally
+    Display memcache related configuration and statistics tracked by memcache locally
     No inputs required
     """
     configurationList = memcache_global.current_configuration()

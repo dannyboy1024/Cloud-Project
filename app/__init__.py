@@ -1,16 +1,15 @@
 from flask import Flask
 from flask_cors import CORS
+import mysql.connector
+from mysql.connector import (connection, errorcode)
+import base64
+import random
 
 global memcache
 
 webapp = Flask(__name__)
 CORS(webapp)
 memcache = {}
-
-import mysql.connector
-from mysql.connector import (connection, errorcode)
-import base64
-import random
 
 global memcache_global, db
 
@@ -40,6 +39,9 @@ class RDBMS:
     #    Cache History Stats
     def __init__(self):
         
+        ######  Set some constants ######################
+        self.cacheStatsTableMaxRowNum = 120
+
         connection, cursor = self.connect()
         
         ####### Create a database #######################
@@ -49,7 +51,7 @@ class RDBMS:
             if err.errno == errorcode.ER_DB_CREATE_EXISTS:
                 print("Database A1_RDBMS already exists.")
             else:
-                print(err.msg)
+                raise err
         cursor.execute("Use A1_RDBMS")
 
         ####### Create tables #########################
@@ -89,13 +91,13 @@ class RDBMS:
         # Write initial configs
         sql = """
         INSERT INTO cacheConfigs (ID, capacity, replacementPolicy)
-        VALUES (%d, %d, %s)
+        VALUES (%s, %s, %s)
         """
-        vals = (0, 50*1024*1024, "RR")
+        vals = (0, 52428800, "RR")
         try:
             cursor.execute(sql, vals)
         except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_:
+            if err.errno == errorcode.ER_DUP_ENTRY:
                 print("Table cacheConfigs already initialized.")
             else:
                 print(err.msg)
@@ -168,9 +170,9 @@ class RDBMS:
 
         # Insert new cache stats and get the id of the new row
         sql = """
-        INSERT INTO {} (ID, numItems, totalSize, numReqs, missRate, hitRate)
-        VALUES (NULL, %d, %d, %d, %f, %f)
-        """.format(tableName)
+        INSERT INTO cacheStatsHistory (numItems, totalSize, numReqs, missRate, hitRate)
+        VALUES (%s, %s, %s, %s, %s)
+        """
         vals = (cacheStats.numItems, cacheStats.totalSize, cacheStats.numReqs, cacheStats.missRate, cacheStats.hitRate)
         cursor.execute(sql, vals)
         lastRowID = cursor.lastrowid
@@ -196,9 +198,10 @@ class RDBMS:
         sql = """
         SELECT * 
         FROM {}
-        WHERE fileKey = {}
-        """.format(tableName, fileKey)
-        cursor.execute(sql)
+        WHERE fileKey = %s
+        """.format(tableName)
+        val = (fileKey,)
+        cursor.execute(sql, val)
         record = cursor.fetchone()
 
         # disconnect
@@ -206,9 +209,7 @@ class RDBMS:
         connection.close()
 
         # get and return file info
-        if record != None:
-            return FILEINFO(record)
-        return None
+        return None if record==None else FILEINFO(*record)
 
     def readAllFileKeys(self):
 
@@ -237,7 +238,7 @@ class RDBMS:
         # query
         tableName = "cacheConfigs"
         sql = """
-        SELECT *
+        SELECT capacity, replacementPolicy
         FROM {}
         WHERE ID = 0;
         """.format(tableName)
@@ -249,7 +250,7 @@ class RDBMS:
         connection.close()
 
         # get and return the configs from db
-        return CACHECONFIGS(record)
+        return CACHECONFIGS(*record)
 
     def readAllStats(self):
 
@@ -269,7 +270,7 @@ class RDBMS:
         connection.close()
 
         # get and return the configs from db
-        return [CACHECONFIGS(record) for record in records]
+        return [CACHESTATS(*record) for record in records]
 
     #######################################
     ###########     Update    #############
@@ -282,10 +283,11 @@ class RDBMS:
         tableName = "fileInfo"
         sql = """
         UPDATE {}
-        SET location = {}
-        WHERE fileKey = {};
-        """.format(tableName, fileInfo.location, fileInfo.key)
-        cursor.execute(sql)
+        SET location = %s
+        WHERE fileKey = %s
+        """.format(tableName)
+        val = (fileInfo.location, fileInfo.key)
+        cursor.execute(sql, val)
 
         # Commit the changes and disconnect
         connection.commit()
@@ -300,10 +302,11 @@ class RDBMS:
         tableName = "cacheConfigs"
         sql = """
         UPDATE {}
-        SET capacity = {}, replacementPolicy = {}
-        WHERE ID = 0;
-        """.format(tableName, cacheConfigs.capacity, cacheConfigs.replacementPolicy)
-        cursor.execute(sql)
+        SET capacity = %s, replacementPolicy = %s
+        WHERE ID = 0
+        """.format(tableName)
+        val = (cacheConfigs.capacity, cacheConfigs.replacementPolicy)
+        cursor.execute(sql, val)
 
         # Commit the changes and disconnect
         connection.commit()
@@ -321,9 +324,10 @@ class RDBMS:
         tableName = "fileInfo"
         sql = """
         DELETE FROM {} 
-        WHERE fileKey = {}
-        """.format(tableName, fileKey)
-        cursor.execute(sql)
+        WHERE fileKey = %s
+        """.format(tableName)
+        val = (fileKey,)
+        cursor.execute(sql, val)
 
         # Commit the changes and disconnect
         connection.commit()
@@ -354,9 +358,10 @@ class RDBMS:
         tableName = "cacheStatsHistory"
         sql = """
         DELETE FROM {} 
-        WHERE ID = {}
-        """.format(tableName, ID)
-        cursor.execute(sql)
+        WHERE ID = %s
+        """.format(tableName)
+        val = (ID,)
+        cursor.execute(sql, val)
 
         # Commit the changes and disconnect
         connection.commit()
