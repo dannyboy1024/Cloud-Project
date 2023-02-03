@@ -382,6 +382,7 @@ class memcache_structure:
         self.num_requests = 0
         self.miss = 0
         self.hit = 0
+        self.cache_operation = True
         # Only used in LRU mode, will be a list, the least recently used 
         # item will be stored in 0 index place, with later entries are the
         # ones accessed more recently
@@ -461,6 +462,14 @@ class memcache_structure:
         self.current_size = 0
         if self.memcache_mode == "LRU":
             self.access_tracker = []
+
+    def memcache_operating(self, operation):
+        """
+        Turn on or turn off cache operation
+        """
+        self.cache_operation = operation
+        if self.cache_operation == False:
+            self.memcache_clear()
 
     def memcache_get(self, key):
         """
