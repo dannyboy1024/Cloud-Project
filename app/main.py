@@ -360,7 +360,8 @@ def getParams():
         db.updCacheConfigs(cacheConfigs)
     params = {
         'size': cacheConfigs.capacity,
-        'policy': cacheConfigs.replacementPolicy
+        'policy': cacheConfigs.replacementPolicy,
+        'operation':  cacheConfigs.operation
     }
     response = webapp.response_class(
         response=json.dumps(params),
@@ -419,10 +420,12 @@ def imageProcess():
         requestJson = {
             'key': key
         }
-        res = requests.post(memcache_host + '/get', params=requestJson)
-        if res.status_code == 400:
-            # cache misses, query db
-            print('cache miss, query db')
+        res = None
+        if memcache_global.cache_operation:
+            res = requests.post(memcache_host + '/get', params=requestJson)
+        elif res or res.status_code == 400:
+            # cache misses or do not use cache, query db
+            print('cache misses or cache not used, query db')
             res = requests.post(memcache_host + '/getFromDB', params=requestJson)
             if res.status_code == 400:
                 content = res.json()
@@ -458,8 +461,9 @@ def imageProcess():
             'key': key,
             'value': base64.b64encode(str(imageContent).encode())
         }
-        res = requests.post(memcache_host + '/put', params=requestJson)
-        requests.post(memcache_host + '/uploadToDB', params=requestJson)
+        if memcache_global.cache_operation:
+            requests.post(memcache_host + '/put', params=requestJson)
+        res = requests.post(memcache_host + '/uploadToDB', params=requestJson)
         content = res.json()
         response = webapp.response_class(
             response=json.dumps(content),
