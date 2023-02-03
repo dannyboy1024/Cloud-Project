@@ -42,6 +42,7 @@ class RDBMS:
         ######  Set some constants ######################
         self.cacheStatsTableMaxRowNum = 120
 
+
         connection, cursor = self.connect()
         
         ####### Create a database #######################
@@ -128,7 +129,7 @@ class RDBMS:
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
+        connection = mysql.connector.connect(user='root', passwd='jiushiwu', database=db, auth_plugin='mysql_native_password')
         cursor = connection.cursor()
         return connection, cursor
 
