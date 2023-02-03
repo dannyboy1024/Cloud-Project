@@ -162,6 +162,20 @@ def refreshConfiguration():
     )
     return response
 
+@webapp.route('/cacheOperation', methods=['POST'])
+def cacheOperation():
+    """
+    Turn on or off the operation of memcache
+    """
+    operation = request.args.get('operation')
+    memcache_global.memcache_operating(operation)
+    response = webapp.response_class(
+        response=json.dumps("OK"),
+        status=200,
+        mimetype='application/json'
+    )
+
+    return response
 
 # @webapp.route('/put', methods=['POST'])
 # def put():
