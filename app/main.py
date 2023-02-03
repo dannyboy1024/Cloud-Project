@@ -11,7 +11,7 @@ import time
 import atexit
 import requests
 
-os_file_path = "C:/Users/jscst/Flask_Test/"
+os_file_path = os.getcwd() + '/fileFolder/'
 # os_file_path = "C:/Users/yuanlidi/ECE1779/A1/localFiles/"
 memcache_host = 'http://127.0.0.1:1081'  # TODO : memcache url
 
@@ -163,30 +163,6 @@ def refreshConfiguration():
     return response
 
 
-# @webapp.route('/put', methods=['POST'])
-# def put():
-#     """
-#     Upload the key/value pair to the memcache
-#     key: string
-#     value: string (For images, base64 encoded string)
-#     """
-#     key = request.form.get('key')
-#     value = request.form.get('value')
-#     feedback = memcache_global.memcache_put(key, value)
-#
-#     status_feedback = 200
-#     if feedback == "Size too big":
-#         status_feedback = 400
-#
-#     response = webapp.response_class(
-#         response=json.dumps(feedback),
-#         status=status_feedback,
-#         mimetype='application/json'
-#     )
-#     return response
-#
-
-# Pass from Front End Functions
 @webapp.route('/uploadToDB', methods=['POST'])
 def uploadToDB():
     """
@@ -197,8 +173,8 @@ def uploadToDB():
     """
     key = request.args.get('key')
     value = request.args.get('value')
-
     full_file_path = os.path.join(os_file_path, key)
+    print("upadte DB", full_file_path)
     if os.path.isfile(full_file_path):
         os.remove(full_file_path)
     with open(full_file_path, 'w') as fp:
@@ -273,9 +249,6 @@ def deleteAllFromDB():
     Remove all the key and values (files, images) from the database and filesystem
     No inputs required
     """
-    # # Omit DB code
-    # allKeys = list(dummyDB.keys())
-    # # End of using dummyDB
     allKeys = db.readAllFileKeys()
     db.delAllFileInfo()
     for key in allKeys:
@@ -294,11 +267,8 @@ def deleteAllFromDB():
 @webapp.route('/getKeys', methods=['GET'])
 # return keys list to the web front
 def getKeys():
-    # query keys stored in database
-    # TODO(wkx): db内容查询keys
-
-    # keys = [1, 2, 3]
     keys = db.readAllFileKeys()
+    print("retrieve keys info: ", keys)
 
     response = webapp.response_class(
         response=json.dumps(keys),
@@ -310,7 +280,7 @@ def getKeys():
 
 @webapp.route('/allKeyMemcache', methods=['GET'])
 def allKeyMemcache():
-    """
+    """`    `
     Display all the keys that stored in the memcache
     No inputs required
     """
@@ -326,22 +296,12 @@ def allKeyMemcache():
 @webapp.route('/deleteKeys', methods=['GET'])
 # delete keys from database, return the key list after auditing
 def deleteKeys():
-    key = request.args.get('key')
-    if key:
-        logging.info("Delete key: ", key)
-        # delete one specified key
-        # TODO(wkx): delete key and retrieve
-        db.delFileInfo(key)
-    else:
-        logging.info("Delete all keys")
-        # TODO(wkx): delete key and retrieve
-        db.delAllFileInfo()
-
-    # keyList = [2, 3]
-    keyList = db.readAllFileKeys()
-
+    res = requests.post(memcache_host + '/deleteAllFromDB')
+    text = "OK"
+    if res.status_code != 200 :
+        text = "Fail to delete keys"
     response = webapp.response_class(
-        response=json.dumps(keyList),
+        response=json.dumps(text),
         status=200,
         mimetype='application/json'
     )
@@ -378,11 +338,10 @@ def configureMemcache():
 def getParams():
     cacheConfigs = None
     if request.method == 'GET':
-        # TODO(wkx): get params from database
         cacheConfigs = db.readCacheConfigs()
     elif request.method == 'PUT':
-        params = request.args.get('params')
-        # TODO(wkx): alter params from database, return altered params
+        data = eval(bytes.decode(request.data))
+        params = data.get('params')
         cacheConfigs = CACHECONFIGS(params['size'], params['policy'])
         db.updCacheConfigs(cacheConfigs)
     params = {
@@ -448,18 +407,26 @@ def imageProcess():
         }
         res = requests.post(memcache_host + '/get', params=requestJson)
         if res.status_code == 400:
-            # request misses, query db
+            # cache misses, query db
+            print('cache miss, query db')
             res = requests.post(memcache_host + '/getFromDB', params=requestJson)
-            content = res.json()
-            response = webapp.response_class(
-                response=json.dumps(content),
-                status=200,
-                mimetype='application/json'
-            )
+            if res.status_code == 400:
+                content = res.json()
+                response = webapp.response_class(
+                    response=json.dumps(content),
+                    status=200,
+                    mimetype='application/json'
+                )
+            else:
+                content = base64.b64decode(res.content)
+                response = webapp.response_class(
+                    response=json.dumps(bytes.decode(content)),
+                    status=200,
+                    mimetype='application/json'
+                )
             return response
         else:
-            print('success image')
-            print(res.content)
+            print('cache success')
             content = base64.b64decode(res.content)
             response = webapp.response_class(
                 response=json.dumps(bytes.decode(content)),
@@ -478,6 +445,7 @@ def imageProcess():
             'value': base64.b64encode(str(imageContent).encode())
         }
         res = requests.post(memcache_host + '/put', params=requestJson)
+        requests.post(memcache_host + '/uploadToDB', params=requestJson)
         content = res.json()
         response = webapp.response_class(
             response=json.dumps(content),
