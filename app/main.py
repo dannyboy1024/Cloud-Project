@@ -358,10 +358,11 @@ def getParams():
         params = data.get('params')
         cacheConfigs = CACHECONFIGS(params['size'], params['policy'])
         db.updCacheConfigs(cacheConfigs)
+        memcache_global.memcache_operating(params['operation'])
     params = {
         'size': cacheConfigs.capacity,
         'policy': cacheConfigs.replacementPolicy,
-        'operation':  cacheConfigs.operation
+        'operation':  memcache_global.cache_operation
     }
     response = webapp.response_class(
         response=json.dumps(params),
