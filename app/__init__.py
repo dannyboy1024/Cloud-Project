@@ -123,8 +123,8 @@ class RDBMS:
         cursor.close()
         connection.close()
 
-    def connect(self, db='A1_RDBMS'):
-        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
+    def connect(self, db=None):
+        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database='A1_RDBMS')
         cursor = connection.cursor()
         return connection, cursor
 
