@@ -124,7 +124,7 @@ class RDBMS:
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
+        connection = mysql.connector.connect(user='root', passwd='ece1779pass', database=db)
         cursor = connection.cursor()
         return connection, cursor
 
