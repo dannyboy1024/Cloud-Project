@@ -6,12 +6,7 @@ import base64
 import random
 
 global memcache
-
-webapp = Flask(__name__)
-CORS(webapp)
 memcache = {}
-
-global memcache_global, db
 
 class FILEINFO:
     def __init__(self, key, location):
@@ -60,8 +55,8 @@ class RDBMS:
         # File Info
         sql = """
         CREATE TABLE fileInfo (
-        fileKey VARCHAR(50) NOT NULL,
-        location VARCHAR(50) NOT NULL,
+        fileKey VARCHAR(100) NOT NULL,
+        location VARCHAR(100) NOT NULL,
         PRIMARY KEY (fileKey)
         );
         """
@@ -78,7 +73,7 @@ class RDBMS:
         CREATE TABLE cacheConfigs (
         ID INT NOT NULL,
         capacity INT(11) NOT NULL,
-        replacementPolicy VARCHAR(50) NOT NULL,
+        replacementPolicy VARCHAR(100) NOT NULL,
         PRIMARY KEY (ID)
         );
         """
@@ -129,7 +124,7 @@ class RDBMS:
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(user='root', passwd='jiushiwu', database=db, auth_plugin='mysql_native_password')
+        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
         cursor = connection.cursor()
         return connection, cursor
 
@@ -230,6 +225,26 @@ class RDBMS:
         connection.close()
 
         # get and return all the keys from db 
+        return [record[0] for record in records]
+    
+    def readAllFilePaths(self):
+
+        connection, cursor = self.connect(db='A1_RDBMS')
+
+        # query
+        tableName = "fileInfo"
+        sql = """
+        SELECT location
+        FROM {}
+        """.format(tableName)
+        cursor.execute(sql)
+        records = cursor.fetchall()
+
+        # disconnect
+        cursor.close()
+        connection.close()
+
+        # get and return all the file paths from db 
         return [record[0] for record in records]
 
     def readCacheConfigs(self):
@@ -508,10 +523,13 @@ class memcache_structure:
         full_list.append(self.hit)
         return full_list
 
-
-webapp = Flask(__name__)
+global memcache_global, db
+application = Flask(__name__)
+webapp = application
+CORS(webapp)
 memcache_global = memcache_structure()
 db = RDBMS()
+
 
 
 from app import main
