@@ -278,14 +278,17 @@ def deleteAllFromDB():
     return response
 
 
-@webapp.route('/getKeys', methods=['GET'])
+@webapp.route('/list_keys', methods=['POST'])
 # return keys list to the web front
 def getKeys():
     keys = db.readAllFileKeys()
     print("retrieve keys info: ", keys)
 
     response = webapp.response_class(
-        response=json.dumps(keys),
+        response=json.dumps({
+            "success": "true",
+            "keys": keys
+        }),
         status=200,
         mimetype='application/json'
     )
@@ -307,20 +310,22 @@ def allKeyMemcache():
     return response
 
 
-@webapp.route('/deleteKeys', methods=['GET'])
+@webapp.route('/delete_all', methods=['POST'])
 # delete keys from database, return the key list after auditing
 def deleteKeys():
     res = requests.post(memcache_host + '/deleteAllFromDB')
-    text = "OK"
-    if res.status_code != 200 :
-        text = "Fail to delete keys"
+    if res.status_code == 200:
+        jsonString = {
+            "success": "true"
+        }
+    else:
+        jsonString = 'Fail'
     response = webapp.response_class(
-        response=json.dumps(text),
+        response=json.dumps(jsonString),
         status=200,
         mimetype='application/json'
     )
     return response
-
 
 @webapp.route('/configureMemcache', methods=['POST'])
 def configureMemcache():
@@ -411,64 +416,83 @@ def currentConfig():
     )
     return response
 
+@webapp.route('/upload', methods=['POST'])
+def uploadImage():
+    # upload image with key
+    # transfer the bytes into dict
 
-@webapp.route('/image', methods=['GET', 'POST'])
-def imageProcess():
+    data = request.form
+    key = data.get('key')
+    imageContent = data.get('file')
+    print(eval(imageContent).get('name'))
+    requestJson = {
+        'key': key,
+        'value': base64.b64encode(str(imageContent).encode())
+    }
+    if memcache_global.cache_operation:
+        requests.post(memcache_host + '/put', params=requestJson)
+    requests.post(memcache_host + '/uploadToDB', params=requestJson)
+    response = webapp.response_class(
+        response=json.dumps({
+            "success": "true",
+            "key": key
+        }),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@webapp.route('/key/<key_value>', methods=['POST'])
+def getImage(key_value):
     # get, upload image with key
-    key = request.args.get('key')
-    if request.method == 'GET':
-        # retrieve image
-        requestJson = {
-            'key': key
-        }
-        res = None
-        if memcache_global.cache_operation:
-            res = requests.post(memcache_host + '/get', params=requestJson)
-        elif res or res.status_code == 400:
-            # cache misses or do not use cache, query db
-            print('cache misses or cache not used, query db')
-            res = requests.post(memcache_host + '/getFromDB', params=requestJson)
-            if res.status_code == 400:
-                content = res.json()
-                response = webapp.response_class(
-                    response=json.dumps(content),
-                    status=200,
-                    mimetype='application/json'
-                )
-            else:
-                content = base64.b64decode(res.content)
-                response = webapp.response_class(
-                    response=json.dumps(bytes.decode(content)),
-                    status=200,
-                    mimetype='application/json'
-                )
-            return response
-        else:
-            print('cache success')
-            content = base64.b64decode(res.content)
+    # retrieve image
+    requestJson = {
+        'key': key_value
+    }
+    res = None
+    if memcache_global.cache_operation:
+        res = requests.post(memcache_host + '/get', params=requestJson)
+    if res or res.status_code == 400:
+        # cache misses or do not use cache, query db
+        print('cache misses or cache not used, query db')
+        res = requests.post(memcache_host + '/getFromDB', params=requestJson)
+        if res.status_code == 400:
+            content = res.json()
             response = webapp.response_class(
-                response=json.dumps(bytes.decode(content)),
+                response=json.dumps({
+                    "success": "false",
+                    "error": {
+                        "code": 400,
+                        "message": content
+                         }
+                }),
                 status=200,
                 mimetype='application/json'
             )
-            return response
-    elif request.method == 'POST':
-        # upload image with key
-        # transfer the bytes into dict
-        data = eval(bytes.decode(request.data))
-        key = data.get('key')
-        imageContent = data.get('imageContent')
-        requestJson = {
-            'key': key,
-            'value': base64.b64encode(str(imageContent).encode())
-        }
-        if memcache_global.cache_operation:
-            requests.post(memcache_host + '/put', params=requestJson)
-        res = requests.post(memcache_host + '/uploadToDB', params=requestJson)
-        content = res.json()
+        else:
+            content = base64.b64decode(res.content)
+            response = webapp.response_class(
+                response=json.dumps({
+                    "success": "true",
+                    "key": key_value,
+                    "content": bytes.decode(content)
+                }),
+                status=200,
+                mimetype='application/json'
+            )
+        return response
+    else:
+        print('cache success')
+        content = base64.b64decode(res.content)
         response = webapp.response_class(
-            response=json.dumps(content),
+            response=json.dumps(json.dumps({
+                    "success": "true",
+                    "key": key_value,
+                    "content": bytes.decode(content)
+                }),),
             status=200,
             mimetype='application/json'
         )
         return response
+
+
