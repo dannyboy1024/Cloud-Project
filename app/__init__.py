@@ -525,8 +525,7 @@ class memcache_structure:
 
 global memcache_global, db
 application = Flask(__name__)
-webapp = application
-CORS(webapp)
+CORS(application)
 memcache_global = memcache_structure()
 db = RDBMS()
 

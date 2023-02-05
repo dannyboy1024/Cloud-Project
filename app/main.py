@@ -1,7 +1,7 @@
 import base64
 
 from flask import render_template, url_for, request
-from app import webapp, memcache_structure, memcache_global, RDBMS, db, CACHECONFIGS, FILEINFO, CACHESTATS
+from app import application, memcache_structure, memcache_global, RDBMS, db, CACHECONFIGS, FILEINFO, CACHESTATS
 from flask import json
 import logging
 from pathlib import Path
@@ -43,12 +43,12 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 
-@webapp.route('/')
+@application.route('/')
 def main():
     return render_template("main.html")
 
 
-@webapp.route('/get', methods=['POST'])
+@application.route('/get', methods=['POST'])
 def get():
     """
     Fetch the value from the memcache given a key
@@ -58,13 +58,13 @@ def get():
     value = memcache_global.memcache_get(key)
 
     if value is None:
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps("Unknown key"),
             status=400,
             mimetype='application/json'
         )
     else:
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps(value),
             status=200,
             mimetype='application/json'
@@ -72,7 +72,7 @@ def get():
     return response
 
 
-@webapp.route('/put', methods=['POST'])
+@application.route('/put', methods=['POST'])
 def put():
     """
     Upload the key/value pair to the memcache
@@ -87,7 +87,7 @@ def put():
     if feedback == "Size too big":
         status_feedback = 400
 
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(feedback),
         status=status_feedback,
         mimetype='application/json'
@@ -95,7 +95,7 @@ def put():
     return response
 
 
-@webapp.route('/clear', methods=['POST'])
+@application.route('/clear', methods=['POST'])
 def clear():
     """
     Remove all contents in the memcache
@@ -103,7 +103,7 @@ def clear():
     """
     memcache_global.memcache_clear()
 
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps("OK"),
         status=200,
         mimetype='application/json'
@@ -111,7 +111,7 @@ def clear():
     return response
 
 
-@webapp.route('/invalidateKey', methods=['POST'])
+@application.route('/invalidateKey', methods=['POST'])
 def invalidateKey():
     """
     Remove an entry in the memcache given a key
@@ -120,13 +120,13 @@ def invalidateKey():
     key = request.form.get('key')
     message = memcache_global.memcache_invalidate(key)
     if message == "OK":
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps("OK"),
             status=200,
             mimetype='application/json'
         )
     else:
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps("Unknown key"),
             status=400,
             mimetype='application/json'
@@ -134,7 +134,7 @@ def invalidateKey():
     return response
 
 
-@webapp.route('/refreshConfiguration', methods=['POST'])
+@application.route('/refreshConfiguration', methods=['POST'])
 def refreshConfiguration():
     """
     Read from the database and configure memcache setting according to 
@@ -151,21 +151,21 @@ def refreshConfiguration():
     }
 
     memcache_global.memcache_reconfigure(size, mode)
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(configs),
         status=200,
         mimetype='application/json'
     )
     return response
 
-@webapp.route('/cacheOperation', methods=['POST'])
+@application.route('/cacheOperation', methods=['POST'])
 def cacheOperation():
     """
     Turn on or off the operation of memcache
     """
     operation = request.args.get('operation')
     memcache_global.memcache_operating(operation)
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps("OK"),
         status=200,
         mimetype='application/json'
@@ -173,7 +173,7 @@ def cacheOperation():
 
     return response
 
-@webapp.route('/uploadToDB', methods=['POST'])
+@application.route('/uploadToDB', methods=['POST'])
 def uploadToDB():
     """
     Upload the key to the database
@@ -196,7 +196,7 @@ def uploadToDB():
     else:
         db.updFileInfo(FILEINFO(key, full_file_path))
 
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(full_file_path),
         status=200,
         mimetype='application/json'
@@ -205,7 +205,7 @@ def uploadToDB():
     return response
 
 
-@webapp.route('/getFromLocalFiles', methods=['POST'])
+@application.route('/getFromLocalFiles', methods=['POST'])
 def getFromLocalFiles():
     """
     Fetch the value (file, or image) from the file system given a key
@@ -215,7 +215,7 @@ def getFromLocalFiles():
     key = request.args.get('key')
     fileInfo = db.readFileInfo(key)
     if fileInfo == None:
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps("File Not Found"),
             status=400,
             mimetype='application/json'
@@ -223,7 +223,7 @@ def getFromLocalFiles():
     else:
         full_file_path = fileInfo.location
         value = Path(full_file_path).read_text()
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps(value),
             status=200,
             mimetype='application/json'
@@ -232,7 +232,7 @@ def getFromLocalFiles():
     return response
 
 
-@webapp.route('/allKeyDB', methods=['POST'])
+@application.route('/allKeyDB', methods=['POST'])
 def allKeyDB():
     """
     Display all the keys that stored in the database
@@ -241,7 +241,7 @@ def allKeyDB():
 
     allKeys = db.readAllFileKeys()
 
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(allKeys),
         status=200,
         mimetype='application/json'
@@ -250,7 +250,7 @@ def allKeyDB():
     return response
 
 
-@webapp.route('/deleteAllFromDB', methods=['POST'])
+@application.route('/deleteAllFromDB', methods=['POST'])
 def deleteAllFromDB():
     """
     Remove all the key and values (files, images) from the database and filesystem
@@ -261,7 +261,7 @@ def deleteAllFromDB():
     for full_file_path in all_full_file_paths:
         if os.path.isfile(full_file_path):
             os.remove(full_file_path)
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps("OK"),
         status=200,
         mimetype='application/json'
@@ -270,13 +270,13 @@ def deleteAllFromDB():
     return response
 
 
-@webapp.route('/list_keys', methods=['POST'])
+@application.route('/list_keys', methods=['POST'])
 # return keys list to the web front
 def getKeys():
     keys = db.readAllFileKeys()
     print("retrieve keys info: ", keys)
 
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps({
             "success": "true",
             "keys": keys
@@ -287,14 +287,14 @@ def getKeys():
     return response
 
 
-@webapp.route('/allKeyMemcache', methods=['GET'])
+@application.route('/allKeyMemcache', methods=['GET'])
 def allKeyMemcache():
     """`    `
     Display all the keys that stored in the memcache
     No inputs required
     """
     allKeys = memcache_global.memcache_allkeys()
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(allKeys),
         status=200,
         mimetype='application/json'
@@ -302,7 +302,7 @@ def allKeyMemcache():
     return response
 
 
-@webapp.route('/delete_all', methods=['POST'])
+@application.route('/delete_all', methods=['POST'])
 # delete keys from database, return the key list after auditing
 def deleteKeys():
     res = requests.post(memcache_host + '/deleteAllFromDB')
@@ -312,14 +312,14 @@ def deleteKeys():
         }
     else:
         jsonString = 'Fail'
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(jsonString),
         status=200,
         mimetype='application/json'
     )
     return response
 
-@webapp.route('/configureMemcache', methods=['POST'])
+@application.route('/configureMemcache', methods=['POST'])
 def configureMemcache():
     """
     Send the new memcache configuration to the database
@@ -336,7 +336,7 @@ def configureMemcache():
         'mode' : mode
     }
 
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(configs),
         status=200,
         mimetype='application/json'
@@ -344,7 +344,7 @@ def configureMemcache():
     return response
 
 
-@webapp.route('/params', methods=['GET', 'PUT'])
+@application.route('/params', methods=['GET', 'PUT'])
 # return mem-cache configuration params
 def getParams():
     cacheConfigs = None
@@ -361,7 +361,7 @@ def getParams():
         'policy': cacheConfigs.replacementPolicy,
         'operation':  memcache_global.cache_operation
     }
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(params),
         status=200,
         mimetype='application/json'
@@ -369,7 +369,7 @@ def getParams():
     return response
 
 
-@webapp.route('/requestCurrentStat', methods=['GET'])
+@application.route('/requestCurrentStat', methods=['GET'])
 def requestCurrentStat():
     """
     Display memcache related statistics read from database
@@ -384,7 +384,7 @@ def requestCurrentStat():
         'missRate' : [record.missRate for record in cacheStats],
         'hitRate' : [record.hitRate for record in cacheStats]
     }
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(stats),
         status=200,
         mimetype='application/json'
@@ -392,21 +392,21 @@ def requestCurrentStat():
     return response
 
 # For debugging purpose
-@webapp.route('/currentConfig', methods=['GET'])
+@application.route('/currentConfig', methods=['GET'])
 def currentConfig():
     """
     Display memcache related configuration and statistics tracked by memcache locally
     No inputs required
     """
     configurationList = memcache_global.current_configuration()
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(configurationList),
         status=200,
         mimetype='application/json'
     )
     return response
 
-@webapp.route('/upload', methods=['POST'])
+@application.route('/upload', methods=['POST'])
 def uploadImage():
     # upload image with key
     # transfer the bytes into dict
@@ -423,7 +423,7 @@ def uploadImage():
     if memcache_global.cache_operation:
         requests.post(memcache_host + '/put', params=requestJson)
     requests.post(memcache_host + '/uploadToDB', params=requestJson)
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps({
             "success": "true",
             "key": key
@@ -433,7 +433,7 @@ def uploadImage():
     )
     return response
 
-@webapp.route('/key/<key_value>', methods=['POST'])
+@application.route('/key/<key_value>', methods=['POST'])
 def getImage(key_value):
     # get, upload image with key
     # retrieve image
@@ -451,7 +451,7 @@ def getImage(key_value):
         res = requests.post(memcache_host + '/getFromLocalFiles', params=requestJson)
         if res.status_code == 400:
             content = res.json()
-            response = webapp.response_class(
+            response = application.response_class(
                 response=json.dumps({
                     "success": "false",
                     "error": {
@@ -464,7 +464,7 @@ def getImage(key_value):
             )
         else:
             content = base64.b64decode(res.content)
-            response = webapp.response_class(
+            response = application.response_class(
                 response=json.dumps({
                     "success": "true",
                     "key": key_value,
@@ -477,7 +477,7 @@ def getImage(key_value):
     else:
         print('cache success')
         content = base64.b64decode(res.content)
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps(json.dumps({
                     "success": "true",
                     "key": key_value,
@@ -495,7 +495,7 @@ def getImage(key_value):
 ### Auto testing endpoints (For independent 3rd party testers) ###
 ##################################################################
 from collections import OrderedDict
-@webapp.route('/api/delete_all', methods=['POST'])
+@application.route('/api/delete_all', methods=['POST'])
 def delete_all():
     all_full_file_paths = db.readAllFilePaths()
     db.delAllFileInfo()
@@ -506,14 +506,14 @@ def delete_all():
     resp = {
         "success" : "true"
     }
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
     return response
 
-@webapp.route('/api/upload', methods=['POST'])
+@application.route('/api/upload', methods=['POST'])
 def upload():
     key = request.form.get('key')
     image = request.files.get('file')
@@ -539,27 +539,27 @@ def upload():
         db.updFileInfo(FILEINFO(key, full_file_path))
 
     resp = OrderedDict([("success", "true"), ("key", [key])])
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
     return response
 
-@webapp.route('/api/list_keys', methods=['POST'])
+@application.route('/api/list_keys', methods=['POST'])
 def retrieveAll():
     keys = db.readAllFileKeys()
     resp = OrderedDict()
     resp["success"] = "true"
     resp["keys"] = keys
-    response = webapp.response_class(
+    response = application.response_class(
         response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
     return response
 
-@webapp.route('/api/key/<key_value>', methods=['POST'])
+@application.route('/api/key/<key_value>', methods=['POST'])
 def retrieve(key_value):
 
     # retrieve image
@@ -581,7 +581,7 @@ def retrieve(key_value):
                 "code": 400,
                 "message": "Target file is not found because the given key is not found in database."
             }
-            response = webapp.response_class(
+            response = application.response_class(
                 response=json.dumps(resp),
                 status=200,
                 mimetype='application/json'
@@ -592,7 +592,7 @@ def retrieve(key_value):
             resp["success"] = "true"
             resp["key"] = [key_value]
             resp["content"] = bytes.decode(content)
-            response = webapp.response_class(
+            response = application.response_class(
                 response=json.dumps(resp),
                 status=200,
                 mimetype='application/json'
@@ -605,7 +605,7 @@ def retrieve(key_value):
         resp["success"] = "true"
         resp["key"] = [key_value]
         resp["content"] = bytes.decode(content)
-        response = webapp.response_class(
+        response = application.response_class(
             response=json.dumps(resp),
             status=200,
             mimetype='application/json'

@@ -1,5 +1,5 @@
 #!../venv/bin/python
-from app import webapp
+from app import application
 
 
-webapp.run('0.0.0.0', 1081, debug=False)
+application.run('0.0.0.0', 1081, debug=False)
