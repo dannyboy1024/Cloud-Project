@@ -527,8 +527,8 @@ global memcache_global, db
 application = Flask(__name__)
 CORS(application)
 memcache_global = memcache_structure()
-db = RDBMS()
-
+# db = RDBMS()
+db = {}
 
 
 from app import main
