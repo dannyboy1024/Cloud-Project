@@ -12,7 +12,6 @@ import atexit
 import requests
 
 os_file_path = os.getcwd() + '/fileFolder/'
-# os_file_path = "C:/Users/yuanlidi/ECE1779/A1/localFiles/"
 memcache_host = 'http://127.0.0.1:1081'  # TODO : memcache url
 
 
@@ -142,10 +141,7 @@ def refreshConfiguration():
     memcache configuration data
     No inputs required
     """
-    # # Pending DB code
-    # size = 50 * 1024 * 1024
-    # mode = "RR"
-    # # End Pending DB code
+
     cacheConfigs = db.readCacheConfigs()
     size = cacheConfigs.capacity
     mode = cacheConfigs.replacementPolicy
@@ -187,16 +183,14 @@ def uploadToDB():
     """
     key = request.args.get('key')
     value = request.args.get('value')
-    full_file_path = os.path.join(os_file_path, key)
-    print("upadte DB", full_file_path)
+    filename  = request.args.get('name')
+    full_file_path = os.path.join(os_file_path, filename)
     if os.path.isfile(full_file_path):
         os.remove(full_file_path)
     with open(full_file_path, 'w') as fp:
         fp.write(value)
+    full_file_path = os.path.join(os_file_path, filename)
 
-    # # Omit DB code
-    # dummyDB[key] = "yes"
-    # # End of using dummyDB
     if db.readFileInfo(key) == None:
         db.insertFileInfo(FILEINFO(key, full_file_path))
     else:
@@ -211,22 +205,23 @@ def uploadToDB():
     return response
 
 
-@webapp.route('/getFromDB', methods=['POST'])
-def getFromDB():
+@webapp.route('/getFromLocalFiles', methods=['POST'])
+def getFromLocalFiles():
     """
     Fetch the value (file, or image) from the file system given a key
     key: string
     """
 
     key = request.args.get('key')
-    full_file_path = os.path.join(os_file_path, key)
-    if not os.path.isfile(full_file_path):
+    fileInfo = db.readFileInfo(key)
+    if fileInfo == None:
         response = webapp.response_class(
             response=json.dumps("File Not Found"),
             status=400,
             mimetype='application/json'
         )
     else:
+        full_file_path = fileInfo.location
         value = Path(full_file_path).read_text()
         response = webapp.response_class(
             response=json.dumps(value),
@@ -263,10 +258,9 @@ def deleteAllFromDB():
     Remove all the key and values (files, images) from the database and filesystem
     No inputs required
     """
-    allKeys = db.readAllFileKeys()
+    all_full_file_paths = db.readAllFilePaths()
     db.delAllFileInfo()
-    for key in allKeys:
-        full_file_path = os.path.join(os_file_path, key)
+    for full_file_path in all_full_file_paths:
         if os.path.isfile(full_file_path):
             os.remove(full_file_path)
     response = webapp.response_class(
@@ -378,9 +372,7 @@ def requestCurrentStat():
     Display memcache related statistics read from database
     No inputs required
     """
-    # # Omit DB code
-    # allKeys = list(dummyDB.keys())
-    # # End of using dummyDB
+
     cacheStats = db.readAllStats()
     stats = {
         'numItems' : [record.numItems for record in cacheStats],
@@ -424,10 +416,13 @@ def imageProcess():
         res = None
         if memcache_global.cache_operation:
             res = requests.post(memcache_host + '/get', params=requestJson)
-        elif res or res.status_code == 400:
+        
+        if res == None or res.status_code == 400:
             # cache misses or do not use cache, query db
             print('cache misses or cache not used, query db')
-            res = requests.post(memcache_host + '/getFromDB', params=requestJson)
+
+            res = requests.post(memcache_host + '/getFromLocalFiles', params=requestJson)
+            
             if res.status_code == 400:
                 content = res.json()
                 response = webapp.response_class(
@@ -460,7 +455,8 @@ def imageProcess():
         imageContent = data.get('imageContent')
         requestJson = {
             'key': key,
-            'value': base64.b64encode(str(imageContent).encode())
+            'value': base64.b64encode(str(imageContent).encode()),
+            'name': eval(imageContent).get('name')
         }
         if memcache_global.cache_operation:
             requests.post(memcache_host + '/put', params=requestJson)
@@ -472,3 +468,127 @@ def imageProcess():
             mimetype='application/json'
         )
         return response
+
+##################################################################
+### Auto testing endpoints (For independent 3rd party testers) ###
+##################################################################
+from collections import OrderedDict
+@webapp.route('/api/delete_all', methods=['POST'])
+def delete_all():
+    all_full_file_paths = db.readAllFilePaths()
+    db.delAllFileInfo()
+    for full_file_path in all_full_file_paths:
+        if os.path.isfile(full_file_path):
+            os.remove(full_file_path)
+    
+    resp = {
+        "success" : "true"
+    }
+    response = webapp.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@webapp.route('/api/upload', methods=['POST'])
+def upload():
+    key = request.form.get('key')
+    image = request.files.get('file')
+    imageBytes = image.read()
+    encodedImage = base64.b64encode(str(imageBytes).encode())
+    requestJson = {
+        'key': key,
+        'value': encodedImage
+    }
+    if memcache_global.cache_operation:
+        requests.post(memcache_host + '/put', params=requestJson)
+    
+    full_file_path = os.path.join(os_file_path, image.filename)
+    print(full_file_path)
+    if os.path.isfile(full_file_path):
+        os.remove(full_file_path)
+    with open(full_file_path, 'wb') as fp:
+        fp.write(encodedImage)
+
+    if db.readFileInfo(key) == None:
+        db.insertFileInfo(FILEINFO(key, full_file_path))
+    else:
+        db.updFileInfo(FILEINFO(key, full_file_path))
+
+    resp = OrderedDict([("success", "true"), ("key", [key])])
+    response = webapp.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@webapp.route('/api/list_keys', methods=['POST'])
+def retrieveAll():
+    keys = db.readAllFileKeys()
+    resp = OrderedDict()
+    resp["success"] = "true"
+    resp["keys"] = keys
+    response = webapp.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@webapp.route('/api/key/<key_value>', methods=['POST'])
+def retrieve(key_value):
+
+    # retrieve image
+    requestJson = {
+        'key': key_value
+    }
+    res = None
+    if memcache_global.cache_operation:
+        res = requests.post(memcache_host + '/get', params=requestJson)
+    
+    if res == None or res.status_code == 400:
+        # cache misses or do not use cache, query db
+        print('cache misses or cache not used, query db')
+        res = requests.post(memcache_host + '/getFromLocalFiles', params=requestJson)
+        if res.status_code == 400:
+            resp = OrderedDict()
+            resp["success"] = "false"
+            resp["error"] = {
+                "code": 400,
+                "message": "Target file is not found because the given key is not found in database."
+            }
+            response = webapp.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        else:
+            content = base64.b64decode(res.content)
+            resp = OrderedDict()
+            resp["success"] = "true"
+            resp["key"] = [key_value]
+            resp["content"] = bytes.decode(content)
+            response = webapp.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        return response
+    else:
+        print('cache success')
+        content = base64.b64decode(res.content)
+        resp = OrderedDict()
+        resp["success"] = "true"
+        resp["key"] = [key_value]
+        resp["content"] = bytes.decode(content)
+        response = webapp.response_class(
+            response=json.dumps(resp),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
+
+
+
