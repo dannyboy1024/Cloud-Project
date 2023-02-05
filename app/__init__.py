@@ -124,7 +124,7 @@ class RDBMS:
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database='A1_RDBMS')
+        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
         cursor = connection.cursor()
         return connection, cursor
 
@@ -527,8 +527,7 @@ global memcache_global, db
 application = Flask(__name__)
 CORS(application)
 memcache_global = memcache_structure()
-# db = RDBMS()
-db = {}
+db = RDBMS()
 
 
 from app import main
