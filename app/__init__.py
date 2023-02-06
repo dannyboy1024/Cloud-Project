@@ -124,7 +124,7 @@ class RDBMS:
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
+        connection = mysql.connector.connect(user='root', passwd='ece1779pass', database=db)
         cursor = connection.cursor()
         return connection, cursor
 
@@ -424,8 +424,11 @@ class memcache_structure:
         in the memcache
         Will remove one file from the memcache according to the memcache mode
         """
-        if self.memcache_mode == "RR":
-            key_evict = random.choice(list(self.memcache.keys()))
+        if self.current_num_items <= 1:
+            self.memcache_clear()
+        elif self.memcache_mode == "RR":
+            keys_in_memcache = list(self.memcache.keys())
+            key_evict = random.choice(keys_in_memcache)
             self.memcache_invalidate(key_evict)
         elif self.memcache_mode == "LRU":
             key_evict = self.access_tracker[0]
@@ -437,7 +440,7 @@ class memcache_structure:
         """
         self.num_requests = self.num_requests + 1
         size = size_MB * 1024 * 1024
-        while size < self.memcache_size:
+        while size < self.current_size:
             self.memcache_evict()
         self.memcache_size = size
         if self.memcache_mode != mode:

@@ -12,7 +12,7 @@ import atexit
 import requests
 
 os_file_path = os.getcwd() + '/fileFolder/'
-memcache_host = 'http://127.0.0.1:1081'  # TODO : memcache url
+memcache_host = 'http://172.31.59.148:5000'  # TODO : memcache url
 
 
 def write_memcache_stats_to_db():
