@@ -356,6 +356,7 @@ def getParams():
         cacheConfigs = CACHECONFIGS(params['size'], params['policy'])
         db.updCacheConfigs(cacheConfigs)
         memcache_global.memcache_operating(params['operation'])
+        requests.post(memcache_host + '/refreshConfiguration')
     params = {
         'size': cacheConfigs.capacity,
         'policy': cacheConfigs.replacementPolicy,
@@ -473,6 +474,11 @@ def getImage(key_value):
                 status=200,
                 mimetype='application/json'
             )
+            requests.post(memcache_host + '/put', params={
+                "key": key_value,
+                "value": res.content
+            })
+
         return response
     else:
         print('cache success')
