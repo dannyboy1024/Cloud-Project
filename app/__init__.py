@@ -64,10 +64,11 @@ class memcache_structure:
         Reconfigure the size and replacement policy of the memcache, and do necessay self-adjustments
         """
         self.num_requests = self.num_requests + 1
-        size = size_MB * 1024 * 1024
-        while size < self.current_size:
-            self.memcache_evict()
-        self.memcache_size = size
+        if size_MB != self.memcache_size:
+            size = size_MB * 1024 * 1024
+            while size < self.current_size:
+                self.memcache_evict()
+            self.memcache_size = size
         if self.memcache_mode != mode:
             self.memcache_mode = mode
             if self.memcache_mode == "RR":

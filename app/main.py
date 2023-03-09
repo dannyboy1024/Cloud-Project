@@ -110,6 +110,20 @@ def clear():
     )
     return response
 
+@application.route('/getCurrentSize', methods=['POST'])
+def getCurrentSize():
+    """
+    Remove all contents in the memcache
+    No inputs required
+    """
+    currentSize = memcache_global.current_size
+    response = application.response_class(
+        response=json.dumps(currentSize),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
 
 @application.route('/invalidateKey', methods=['POST'])
 def invalidateKey():
@@ -140,8 +154,12 @@ def allKeyMemcache():
     No inputs required
     """
     allKeys = memcache_global.memcache_allkeys()
+    resp = {
+        "success" : "true", 
+        "all_keys": allKeys
+    }
     response = application.response_class(
-        response=json.dumps(allKeys),
+        response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
@@ -154,8 +172,14 @@ def configureMemcache():
     size: an integer, number of MB (eg. 5 will be treated as 5 MB)
     mode: a string, can be either "RR" or "LRU"
     """
-    size = request.args.get('size')
-    mode = request.args.get('mode')
+    if size in request.args:
+        size = request.args.get('size')
+    else:
+        size = memcache_global.memcache_size / (1024*1024)
+    if mode in request.args:
+        mode = request.args.get('mode')
+    else:
+        mode = memcache_global.memcache_mode
     configs = {
         'size' : size,
         'mode' : mode
