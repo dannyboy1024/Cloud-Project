@@ -11,22 +11,8 @@
             <input type="submit" value="get" />
         </form>
 
-        <form action="{{ url_for('getFromLocalFiles')}}" method="post">
-            <label>get from DB key:</label>
-            <input type="text" name="key" />
-            <input type="submit" value="get" />
-        </form>
-
         <form action="{{ url_for('put')}}" method="post">
             <label>post key:</label>
-            <input type="text" name="key" />
-            <label>value:</label>
-            <input type="text" name="value" />
-            <input type="submit" value="put" />
-        </form>
-
-        <form action="{{ url_for('uploadToDB')}}" method="post">
-            <label>Upload to DB key:</label>
             <input type="text" name="key" />
             <label>value:</label>
             <input type="text" name="value" />
