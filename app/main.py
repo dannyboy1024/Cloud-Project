@@ -15,34 +15,6 @@ os_file_path = os.getcwd() + '/fileFolder/'
 memcache_host = 'http://127.0.0.1:5000'  # TODO : memcache url
 
 
-def write_memcache_stats_to_db():
-    # We will use this function to implement the timing storage
-    print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
-    
-    # get stats
-    #numItems = memcache_global.current_num_items
-    #totalSize = memcache_global.current_size
-    #numReqs = memcache_global.num_requests
-    #numMiss = memcache_global.miss
-    #numHit = memcache_global.hit
-    #missRate = (numMiss / (numMiss + numHit)) if numMiss + numHit > 0 else 0.0
-    #hitRate = (numHit / (numMiss + numHit)) if numMiss + numHit > 0 else 0.0
-    
-    # update db
-    #numRows, lastRowID = db.insertCacheStats(CACHESTATS(numItems, totalSize, numReqs, missRate, hitRate))
-    #if numRows == db.cacheStatsTableMaxRowNum:
-        # delete the first row if there are 120 rows (10 min stats) in the table
-        #db.delCacheStats(lastRowID - db.cacheStatsTableMaxRowNum)
-    
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=write_memcache_stats_to_db, trigger="interval", seconds=5)
-scheduler.start()
-
-# Shut down the scheduler when exiting the app
-atexit.register(lambda: scheduler.shutdown())
-
-
 @application.route('/')
 def main():
     return render_template("main.html")
@@ -172,11 +144,11 @@ def configureMemcache():
     size: an integer, number of MB (eg. 5 will be treated as 5 MB)
     mode: a string, can be either "RR" or "LRU"
     """
-    if size in request.args:
-        size = request.args.get('size')
+    if "size" in request.args:
+        size = int(request.args.get('size'))
     else:
         size = memcache_global.memcache_size / (1024*1024)
-    if mode in request.args:
+    if "mode" in request.args:
         mode = request.args.get('mode')
     else:
         mode = memcache_global.memcache_mode

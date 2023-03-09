@@ -15,7 +15,7 @@ class memcache_structure:
         """
         self.memcache = {}
         self.key_size = {}
-        self.memcache_size = 10 * 1024 * 1024
+        self.memcache_size = 1 * 1024 * 1024
         self.memcache_mode = "RR"
         self.current_num_items = 0
         self.current_size = 0
