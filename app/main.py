@@ -91,7 +91,7 @@ def clear():
     )
     return response
 
-@application.route('/getCurrentSize', methods=['GET'])
+@application.route('/getCurrentSize', methods=['POST'])
 def getCurrentSize():
     """
     Remove all contents in the memcache
@@ -181,7 +181,7 @@ def configureMemcache():
     )
     return response
 
-@application.route('/currentConfig', methods=['GET'])
+@application.route('/currentConfig', methods=['POST'])
 def currentConfig():
     """
     Display memcache related configuration and statistics tracked by memcache locally
