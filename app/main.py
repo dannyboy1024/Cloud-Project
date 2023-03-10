@@ -27,7 +27,7 @@ def get():
     key: string
     """
     key = request.args.get('key')
-    value = memcache_global.memcache_get(key)
+    (value, size) = memcache_global.memcache_get(key)
 
     if value is None:
         resp = {
@@ -42,7 +42,8 @@ def get():
     else:
         resp = {
             "success" : "true", 
-            "value": value
+            "value": value, 
+            "size": size
         }
         response = application.response_class(
             response=json.dumps(resp),

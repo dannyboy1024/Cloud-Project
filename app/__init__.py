@@ -128,7 +128,7 @@ class memcache_structure:
             if self.memcache_mode == "LRU":
                 self.access_tracker.remove(key)
                 self.access_tracker.append(key)
-            return self.memcache[key]
+            return self.memcache[key], self.key_size[key]
         else:
             self.miss = self.miss + 1
             return None
