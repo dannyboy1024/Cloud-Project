@@ -30,14 +30,22 @@ def get():
     value = memcache_global.memcache_get(key)
 
     if value is None:
+        resp = {
+            "success" : "false", 
+            "error": "Unknown key"
+        }
         response = application.response_class(
-            response=json.dumps("Unknown key"),
+            response=json.dumps(resp),
             status=400,
             mimetype='application/json'
         )
     else:
+        resp = {
+            "success" : "true", 
+            "value": value
+        }
         response = application.response_class(
-            response=json.dumps(value),
+            response=json.dumps(resp),
             status=200,
             mimetype='application/json'
         )
@@ -61,7 +69,7 @@ def put():
         status_feedback = 400
 
     response = application.response_class(
-        response=json.dumps(feedback),
+        response=json.dumps({"message": feedback}),
         status=status_feedback,
         mimetype='application/json'
     )
@@ -77,7 +85,7 @@ def clear():
     memcache_global.memcache_clear()
 
     response = application.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps({"message": "OK"}),
         status=200,
         mimetype='application/json'
     )
@@ -91,7 +99,7 @@ def getCurrentSize():
     """
     currentSize = memcache_global.current_size
     response = application.response_class(
-        response=json.dumps(currentSize),
+        response=json.dumps({"size": currentSize}),
         status=200,
         mimetype='application/json'
     )
@@ -104,17 +112,25 @@ def invalidateKey():
     Remove an entry in the memcache given a key
     key: string
     """
-    key = request.form.get('key')
+    key = request.args.get('key')
     message = memcache_global.memcache_invalidate(key)
     if message == "OK":
+        resp = {
+            "success" : "true", 
+            "message": "OK"
+        }
         response = application.response_class(
-            response=json.dumps("OK"),
+            response=json.dumps(resp),
             status=200,
             mimetype='application/json'
         )
     else:
+        resp = {
+            "success" : "false", 
+            "error": "Unknown key"
+        }
         response = application.response_class(
-            response=json.dumps("Unknown key"),
+            response=json.dumps(resp),
             status=400,
             mimetype='application/json'
         )
@@ -172,6 +188,10 @@ def currentConfig():
     No inputs required
     """
     configurationList = memcache_global.current_configuration()
+    resp = {
+        "success" : "true", 
+        "configuration": configurationList
+    }
     response = application.response_class(
         response=json.dumps(configurationList),
         status=200,
