@@ -136,7 +136,7 @@ def invalidateKey():
         )
     return response
 
-@application.route('/allKeyMemcache', methods=['GET'])
+@application.route('/allKeyMemcache', methods=['POST'])
 def allKeyMemcache():
     """`    `
     Display all the keys that stored in the memcache
