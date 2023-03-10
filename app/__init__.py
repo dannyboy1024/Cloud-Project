@@ -33,9 +33,10 @@ class memcache_structure:
         Remove a key and its entry (value) from the memcache
         """
         if key in self.memcache:
-            self.current_size = self.current_size - len(self.memcache[key])
+            self.current_size = self.current_size - self.key_size[key]
             self.current_num_items = self.current_num_items - 1
             del self.memcache[key]
+            del self.key_size[key]
             if self.memcache_mode == "LRU":
                 self.access_tracker.remove(key)
             return "OK"
@@ -76,21 +77,22 @@ class memcache_structure:
             elif self.memcache_mode == "LRU":
                 self.access_tracker = []
 
-    def memcache_put(self, key, value):
+    def memcache_put(self, key, value, size):
         """
         Insert a new entry into the memcache
         """
         self.num_requests = self.num_requests + 1
-        if len(value) > self.memcache_size:
+        if size > self.memcache_size:
             return "Size too big"
         # Remove old entry if key exist
         if key in self.memcache:
             self.memcache_invalidate(key)
         # If remaining size is not enough, need to evict some entries first
-        while self.current_size + len(value) > self.memcache_size:
+        while self.current_size + size > self.memcache_size:
             self.memcache_evict()
         self.memcache[key] = value
-        self.current_size = self.current_size + len(value)
+        self.key_size[key] = size
+        self.current_size = self.current_size + size
         self.current_num_items = self.current_num_items + 1
         if self.memcache_mode == "LRU":
             self.access_tracker.append(key)
@@ -102,6 +104,7 @@ class memcache_structure:
         """
         self.num_requests = self.num_requests + 1
         self.memcache.clear()
+        self.key_size.clear()
         self.current_num_items = 0
         self.current_size = 0
         if self.memcache_mode == "LRU":

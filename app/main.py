@@ -53,7 +53,8 @@ def put():
     """
     key = request.args.get('key')
     value = request.args.get('value')
-    feedback = memcache_global.memcache_put(key, value)
+    size = int(request.args.get('size'))
+    feedback = memcache_global.memcache_put(key, value, size)
 
     status_feedback = 200
     if feedback == "Size too big":
@@ -82,7 +83,7 @@ def clear():
     )
     return response
 
-@application.route('/getCurrentSize', methods=['POST'])
+@application.route('/getCurrentSize', methods=['GET'])
 def getCurrentSize():
     """
     Remove all contents in the memcache
