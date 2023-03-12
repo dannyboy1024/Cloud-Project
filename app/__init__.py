@@ -76,6 +76,9 @@ class memcache_structure:
                 self.access_tracker = None
             elif self.memcache_mode == "LRU":
                 self.access_tracker = []
+                if self.memcache != {}:
+                    for key in self.memcache:
+                        self.access_tracker.append(key)
 
     def memcache_put(self, key, value, size):
         """

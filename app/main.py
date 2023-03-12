@@ -27,9 +27,9 @@ def get():
     key: string
     """
     key = request.args.get('key')
-    (value, size) = memcache_global.memcache_get(key)
+    res = memcache_global.memcache_get(key)
 
-    if value is None:
+    if res is None:
         resp = {
             "success" : "false", 
             "error": "Unknown key"
@@ -40,6 +40,7 @@ def get():
             mimetype='application/json'
         )
     else:
+        (value, size) = res
         resp = {
             "success" : "true", 
             "value": value, 
